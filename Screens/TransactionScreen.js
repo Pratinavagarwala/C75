@@ -1,9 +1,10 @@
 import * as React from 'react';
-import {View ,Text , StyleSheet,TouchableOpacity,TextInput,Image,KeyboardAvoidingView,ToastAndroid} from 'react-native';
+import {View ,Text , StyleSheet,TouchableOpacity,TextInput,Image,KeyboardAvoidingView,ToastAndroid, Alert} from 'react-native';
 import * as Permissions from 'expo-permissions';
 import {BarCodeScanner} from 'expo-barcode-scanner';
 import db from "../config";
 import firebase from "firebase";
+import { TabRouter } from 'react-navigation';
 export default class TransactionScreen extends React.Component{
     constructor(){
         super();
@@ -69,23 +70,96 @@ export default class TransactionScreen extends React.Component{
             booksIssued:firebase.firestore.FieldValue.increment(-1)
         })
     }
-    handleTransaction=async()=>{
-        var transactionMessage
-        db.collection("Books").doc(this.state.scannedBookId).get()
-        .then((doc)=>{
-            var book=doc.data()
-            if(book.bookAvailable){
-                this.initiateBookIssue();
-                transactionMessage="Book Issued";
-                ToastAndroid.show(transactionMessage,ToastAndroid.SHORT);
+
+    checkStudentElibilityForBookIssue=async()=>{
+        const studentRef=await db.collection("Students").where("studentId","==",this.state.scannesStudentId).get();
+        var isStudentElible=""
+        if(studentRef.docs.length===0){
+            this.setState({
+                scannedBookId:"",
+                scannesStudentId:"",
+            })
+            isStudentElible=false;
+            Alert.alert("Student id does not exist");
+    }else{
+        studentRef.docs.map((doc)=>{
+            var student=doc.data();
+            if(student.booksIssued<2){
+                isStudentElible=true
             }else{
-                this.initiateBookReturn();
-                transactionMessage="Book Returned";
-                ToastAndroid.show(transactionMessage,ToastAndroid.SHORT);
+                isStudentElible=false
+                Alert.alert("TWO BOOKS ALREADY ISSUED")
+                this.setState({
+                    scannedBookId:"",
+                    scannesStudentId:"",
+                })
             }
-            
         })
-        this.setState({transactionMessage:transactionMessage});
+    }
+    return isStudentElible;
+}
+
+checkStudentElibilityForBookReturn=async()=>{
+    const transactionRef=await db.collection("Transactions").where("bookId","==",this.state.scannedBookId).limit(1).get();
+    var isStudentElible=""
+    
+    transactionRef.docs.map((doc)=>{
+        var lastBookT=doc.data();
+        if(lastBookT.studentId==this.state.scannesStudentId){
+            isStudentElible=true
+        }else{
+            isStudentElible=false
+            Alert.alert("BOOK NOT ISSUED BY THIS STUDENT")
+            this.setState({
+                scannedBookId:"",
+                scannesStudentId:"",
+            })
+        }
+    })
+    return isStudentElible;
+}
+
+checkBookEligibility=async()=>{
+    const bookRef=await db.collection("Books").where("bookId","==",this.state.scannedBookId).get();
+    var transactionType=""
+    if(bookRef.docs.length==0){
+        transactionType=false
+    }else{
+        bookRef.docs.map((doc)=>{
+            var book =doc.data()
+            if(book.bookAvailable){
+                transactionType="issue"
+            }else{
+                transactionType="return"
+            }
+        })
+    }
+    return transactionType;
+}
+
+
+    handleTransaction=async()=>{
+        var transactionType=await this.checkBookEligibility()
+        if(!transactionType){
+            Alert.alert("This book does not exist in the library")
+            this.setState({
+                scannesStudentId:"",
+                scannedBookId:"",
+            })
+        }else if(transactionType==="issue"){
+            var isStudentElible=await this.checkStudentElibilityForBookIssue();
+            if(isStudentElible){
+                this.initiateBookIssue();
+                Alert.alert("Book issued to the student")
+            }
+        }else{
+            var isStudentElible=await this.checkStudentElibilityForBookReturn();
+            if(isStudentElible){
+                this.initiateBookReturn();
+                Alert.alert("Book returned to the student")
+            }  
+        }
+        
     }
     render(){
         const buttonState=this.state.buttonState
