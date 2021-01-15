@@ -36,7 +36,11 @@ export default class SearchScreen extends React.Component{
                     data={this.state.allTransactions}
                     keyExtractor={(item,index)=>index.toString()}
                     renderItem={({item})=>(
-                        <View>
+                        <View 
+                            style={{
+                                borderWidth:2,
+                            }}
+                        >
                             <Text>{"Book id: " +item.bookId}</Text>
                             <Text>{"Student id: " +item.studentId}</Text>
                             <Text>{"Transaction Type : " +item.transactionType}</Text>
@@ -53,8 +57,8 @@ export default class SearchScreen extends React.Component{
 
 var Styles=StyleSheet.create({
     container:{
-        flex:1,
+        marginTop:30,
         justifyContent:'center',
-        alignItems:'center',
+        
     }
 })
